@@ -2,7 +2,12 @@
 <html lang="pl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Klockowo">
+<meta name="format-detection" content="telephone=no">
 <title>Klockowo</title>
 <meta name="description" content="Klockowo: spokojna gra w budowanie dla dzieci. Klocki, przyroda, zwierzaki i misje od mieszkańców. Działa w przeglądarce, bez reklam i bez logowania.">
 <meta name="theme-color" content="#cfe9fb">
@@ -16,9 +21,12 @@
   --green: #a8ddb2; --green-d: #6fbf80; --blue: #b4d8f5; --blue-d: #7fb4e3;
   --yellow: #fae29a; --pink: #f8c6d3; --peach: #f9cfb4;
   --shadow: 0 4px 0 rgba(80,60,90,.12), 0 8px 18px rgba(80,60,90,.10);
+  /* wycięcia ekranu i pasek gestów (iPhone poziomo, Android bez przycisków) */
+  --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px); --sar: env(safe-area-inset-right, 0px);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; height: 100%; overflow: hidden; }
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
 body {
   font-family: "Nunito", "Quicksand", "Segoe UI Rounded", "Segoe UI", "Trebuchet MS", system-ui, sans-serif;
   color: var(--ink); user-select: none; -webkit-user-select: none;
@@ -39,7 +47,7 @@ body {
 #app { position: fixed; inset: 0; z-index: 1; }
 .screen { position: absolute; inset: 0; display: none; flex-direction: column; }
 .screen.active { display: flex; }
-.bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px 8px; flex: 0 0 auto; }
+.bar { display: flex; align-items: center; gap: 10px; padding: calc(12px + var(--sat)) calc(16px + var(--sar)) 8px calc(16px + var(--sal)); flex: 0 0 auto; }
 .spacer { flex: 1; }
 .btn {
   border: none; border-radius: 18px; background: var(--card); box-shadow: var(--shadow);
@@ -60,7 +68,7 @@ body {
 .star-ico { width: 26px; height: 26px; display: inline-block; vertical-align: middle; }
 
 /* MENU */
-.title { text-align: center; margin: 0; font-size: clamp(44px, 8vh, 78px); font-weight: 900; letter-spacing: 2px; line-height: 1; }
+.title { text-align: center; margin: 0; font-size: clamp(44px, 8vh, 78px); font-size: clamp(44px, 8dvh, 78px); font-weight: 900; letter-spacing: 2px; line-height: 1; }
 .title span { display: inline-block; text-shadow: 0 4px 0 rgba(80,60,90,.13); }
 .menu-scene { flex: 1; position: relative; min-height: 140px; }
 .menu-scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -76,9 +84,9 @@ body {
 .host3d { position: absolute; inset: 0; z-index: 0; }
 
 /* BUDOWANIE 3D */
-.hud-top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 10px; padding: 12px 16px; pointer-events: none; z-index: 2; }
+.hud-top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 10px; padding: calc(12px + var(--sat)) calc(16px + var(--sar)) 12px calc(16px + var(--sal)); pointer-events: none; z-index: 2; }
 .hud-top > .btn { pointer-events: auto; }
-.hud-bottom { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 10px 12px; pointer-events: none; z-index: 2; }
+.hud-bottom { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 calc(10px + var(--sar)) calc(12px + var(--sab)) calc(10px + var(--sal)); pointer-events: none; z-index: 2; }
 .dock { pointer-events: auto; display: flex; align-items: center; gap: 10px; background: rgba(255,250,242,.85); backdrop-filter: blur(6px); border-radius: 26px; padding: 8px 10px; box-shadow: var(--shadow); max-width: calc(100vw - 20px); }
 .dsep { width: 2px; align-self: stretch; background: rgba(74,68,88,.1); border-radius: 2px; }
 .tools3 { display: flex; gap: 6px; }
@@ -106,7 +114,7 @@ body {
 .dialog.wardrobe h2 { font-size: 32px; margin: 2px 0 6px; }
 .wr-tabs { display: flex; gap: 10px; justify-content: center; margin: 4px 0 6px; }
 .wr-tabs .btn.sel { outline: 3px solid var(--green-d); background: #fff; }
-.wr-body { flex: 1; max-height: 56vh; overflow-y: auto; padding: 4px; }
+.wr-body { flex: 1; max-height: 56vh; max-height: 56dvh; overflow-y: auto; padding: 4px; }
 .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .hero-c { border: 0; background: #fff; border-radius: 18px; box-shadow: 0 2px 6px rgba(60,40,80,.12); padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; font: 800 15px inherit; font-family: inherit; }
 .hero-c img { width: 96px; height: 96px; }
@@ -199,13 +207,19 @@ body, .btn { -webkit-touch-callout: none; -webkit-tap-highlight-color: transpare
 .touch .jumpbtn.on { display: flex; position: absolute; right: 22px; bottom: 26px; width: 84px; height: 84px; border-radius: 50%; font-size: 40px; font-weight: 900; z-index: 3; touch-action: none; background: rgba(255,250,242,.92); }
 .touch .compass3 { bottom: 124px; }
 .touch .walkbar .btn.bigmode { height: 64px; font-size: 20px; padding: 0 18px; } .touch .walkbar .btn.bigmode .em { font-size: 28px; }
+/* niższy ekran (laptop): trochę mniejsze przyciski; musi stać PRZED układem telefonu, inaczej go nadpisze */
+@media (max-height: 760px) {
+  .tools3 .tool { width: 60px; height: 62px; } .tools3 .tool .em { font-size: 23px; }
+  .items3 .ptile { width: 68px; height: 78px; } .items3 .ptile img { width: 48px; height: 48px; }
+  .btn.shape-btn { width: 62px; height: 64px; } .shape-btn img { width: 42px; height: 42px; }
+}
 /* telefon: kompaktowy układ */
 @media (max-height: 520px), (max-width: 700px) {
   .hud-top { padding: 8px 10px; gap: 6px; }
   .hud-top .btn.icon, .campad .btn.icon { width: 44px; height: 44px; border-radius: 14px; font-size: 22px !important; }
   .hud-top .btn.icon svg { width: 24px; height: 24px; }
   .campad { right: 8px; gap: 6px; top: 62px; transform: none; }
-  .wr-body { max-height: 50vh; } .dialog.wardrobe { padding: 12px 14px; }
+  .wr-body { max-height: 50vh; max-height: 50dvh; } .dialog.wardrobe { padding: 12px 14px; }
   .quest3 { top: 8px; padding: 4px 10px; gap: 8px; max-width: 46vw; border-radius: 16px; }
   .quest3 .q-em { font-size: 24px; } .quest3 .q-t { font-size: 14px; } .quest3 .q-t small { font-size: 11px; }
   .quest3 .q-need img { width: 30px; height: 30px; } .quest3 .q-num { font-size: 15px; } .quest3 .q-dots i { width: 11px; height: 11px; }
@@ -276,10 +290,53 @@ body, .btn { -webkit-touch-callout: none; -webkit-tap-highlight-color: transpare
   .wcard img.thumb { width: 170px !important; height: 106px !important; }
   .slot-cards { flex-wrap: nowrap !important; justify-content: safe center !important; overflow-x: auto !important; overflow-y: hidden !important; padding: 10px !important; }
 }
-@media (max-height: 760px) {
-  .tools3 .tool { width: 60px; height: 62px; } .tools3 .tool .em { font-size: 23px; }
-  .items3 .ptile { width: 68px; height: 78px; } .items3 .ptile img { width: 48px; height: 48px; }
-  .btn.shape-btn { width: 62px; height: 64px; } .shape-btn img { width: 42px; height: 42px; }
+
+/* wycięcia ekranu: przyciski przy krawędziach odsuwamy od notcha i paska gestów */
+.campad { margin-right: var(--sar); margin-top: var(--sat); }
+.compass3 { margin-right: var(--sar); margin-bottom: var(--sab); }
+.touch .joy.on { margin-left: var(--sal); margin-bottom: var(--sab); }
+.touch .jumpbtn.on { margin-right: var(--sar); margin-bottom: var(--sab); }
+.quest3, .tut3, .toast3 { margin-top: var(--sat); }
+.btn.fs-btn { display: none; }
+.touch .btn.fs-btn.can { display: inline-flex; }
+/* telefon poziomo (mało wysokości): jeden niski pasek na dole, kształty klocków jako siatka z lewej */
+@media (orientation: landscape) and (max-height: 520px) {
+  .hud-top { padding-top: calc(6px + var(--sat)); padding-bottom: 6px; }
+  .hud-top .btn.icon, .campad .btn.icon { width: 42px; height: 42px; }
+  .campad { top: 54px; gap: 5px; }
+  .quest3 { top: 6px; max-width: 44vw; }
+  .tut3, .toast3 { top: 54px; }
+  .hud-bottom { padding-bottom: calc(5px + var(--sab)); }
+  .dock { padding: 4px 5px; gap: 5px; border-radius: 18px; flex-wrap: nowrap; }
+  .tools3 { gap: 4px; }
+  .btn.tool.tomode, .tools3 .tool { width: 46px; height: 48px; font-size: 9px; border-radius: 13px; }
+  .btn.tool.tomode .em, .tools3 .tool .em { font-size: 20px; }
+  .catbtn { width: 46px; height: 48px; font-size: 22px; border-radius: 13px; }
+  .items3 { padding: 3px; gap: 5px; }
+  .items3 .ptile { width: 50px; height: 50px; font-size: 9px; border-radius: 12px; }
+  .items3 .ptile img { width: 32px; height: 32px; margin-bottom: 1px; }
+  .ptile .tool-em { font-size: 24px; line-height: 32px; height: 32px; }
+  .erase-hint { font-size: 12px; } .erase-hint .em { font-size: 24px; } .erase-hint small { font-size: 10px; }
+  .shape-row { position: absolute; left: calc(6px + var(--sal)); bottom: calc(100% + 6px); display: grid; grid-template-columns: repeat(3, auto); gap: 4px; padding: 5px; border-radius: 16px;
+    max-width: none; max-height: calc(100vh - 130px); max-height: calc(100dvh - 130px - var(--sat) - var(--sab)); overflow-x: hidden; overflow-y: auto; touch-action: pan-y; }
+  .btn.shape-btn { width: 46px; height: 46px; font-size: 8px; border-radius: 11px; }
+  .shape-btn img { width: 30px; height: 30px; }
+  .shape-btn.rot svg { width: 22px; height: 22px; margin: 3px 0 2px; }
+  .tool-em.small { font-size: 18px; line-height: 30px; height: 30px; }
+  .compass3, .touch .compass3 { width: 54px; height: 54px; right: 8px; bottom: 72px; } .compass3 svg { width: 32px; height: 32px; } .compass3 span { font-size: 18px; }
+  .touch #scr-build.walking .compass3 { bottom: 14px; right: 86px; }
+  .touch .joy.on { width: 100px; height: 100px; left: 12px; bottom: 10px; } .touch .joy .joy-k { width: 46px; height: 46px; margin: -23px 0 0 -23px; }
+  .touch .jumpbtn.on { width: 62px; height: 62px; right: 12px; bottom: 12px; font-size: 28px; }
+  .btn.bigmode, .touch .walkbar .btn.bigmode { height: 48px; font-size: 16px; padding: 0 12px; border-radius: 16px; }
+  .btn.bigmode .em, .touch .walkbar .btn.bigmode .em { font-size: 22px; }
+  #scr-menu .bar, #scr-slots .bar { padding-top: calc(6px + var(--sat)); padding-bottom: 2px; }
+  .title { font-size: 30px !important; }
+  .menu-scene { min-height: 40px; }
+  .menu-tiles { padding: 2px 10px calc(8px + var(--sab)) !important; }
+  .big-tile { width: 132px !important; height: 92px !important; font-size: 17px !important; border-radius: 22px !important; } .big-tile .em { font-size: 38px !important; }
+  .dialog { max-height: calc(100vh - 12px); max-height: calc(100dvh - 12px - var(--sat) - var(--sab)); padding: 12px 16px; }
+  .dialog h2 { font-size: 24px; }
+  .npc-row { flex-direction: row; text-align: left; }
 }
 
 /* BUILD */
@@ -354,7 +411,7 @@ body, .btn { -webkit-touch-callout: none; -webkit-tap-highlight-color: transpare
 .dialog { -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; overscroll-behavior: contain; }
 #scr-menu { overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
 @keyframes fadein { from { opacity: 0; } }
-.dialog { background: var(--card); border-radius: 32px; padding: 28px 34px; box-shadow: 0 10px 40px rgba(60,40,80,.25); max-width: min(620px, 94vw); max-height: 92vh; overflow: auto; text-align: center; animation: pop .35s ease-out; }
+.dialog { background: var(--card); border-radius: 32px; padding: 28px 34px; box-shadow: 0 10px 40px rgba(60,40,80,.25); max-width: min(620px, 94vw); max-height: 92vh; max-height: calc(100dvh - 16px - var(--sat) - var(--sab)); overflow: auto; text-align: center; animation: pop .35s ease-out; }
 @keyframes pop { from { transform: scale(.85); opacity: 0; } }
 .dialog h2 { margin: 6px 0 10px; font-size: 40px; }
 .dialog p { font-size: 19px; line-height: 1.45; margin: 8px 0; }
@@ -404,6 +461,7 @@ body, .btn { -webkit-touch-callout: none; -webkit-tap-highlight-color: transpare
     <div id="menu-host" class="host3d"></div>
     <div class="bar">
       <button class="btn small" id="m-parent">⚙️ Dla rodzica</button>
+      <button class="btn icon small fs-btn" id="m-fs" title="Pełny ekran"></button>
       <div class="spacer"></div>
       <div class="next-reward" id="m-next"></div>
       <div class="stars" id="m-stars"></div>
@@ -658,6 +716,8 @@ const ICON = {
   arrow: '<svg viewBox="0 0 40 40"><path d="M7 20h24M21 9l11 11-11 11" fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   play: '<svg viewBox="0 0 32 32"><path d="M10 6v20l17-10z" fill="currentColor" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/></svg>',
   bksp: '<svg viewBox="0 0 32 32"><path d="M11 7h16v18H11l-8-9z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M15 12l7 8M22 12l-7 8" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
+  fsOn: '<svg viewBox="0 0 32 32"><path d="M5 12V5h7M20 5h7v7M27 20v7h-7M12 27H5v-7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  fsOff: '<svg viewBox="0 0 32 32"><path d="M12 5v7H5M27 12h-7V5M20 27v-7h7M5 20h7v7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   trash: '<svg viewBox="0 0 32 32"><path d="M6 9h20M13 9V6h6v3M9 9l1.5 17h11L23 9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 
@@ -670,9 +730,35 @@ const Store = {
   del(k) { try { localStorage.removeItem('klockowo.' + k); } catch (e) {} },
 };
 let IS_TOUCH = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
-const settings = Object.assign({ sound: true, voice: true, breakMin: 20, unlockAll: false, lowGfx: IS_TOUCH, age: 0 }, Store.get('settings', {}));
+const settings = Object.assign({ sound: true, voice: true, breakMin: 20, unlockAll: false, lowGfx: IS_TOUCH, age: 0, fullscreen: true }, Store.get('settings', {}));
 if (IS_TOUCH) document.documentElement.classList.add('touch');
 window.addEventListener('pointerdown', e => { if (e.pointerType === 'touch' && !IS_TOUCH) { IS_TOUCH = true; document.documentElement.classList.add('touch'); if (typeof Build3 !== 'undefined' && Build3.renderHud) Build3.renderHud(); } }, true);
+/* Pełny ekran na telefonie i tablecie: paski przeglądarki zabierają za dużo miejsca.
+   Przeglądarka pozwala go włączyć tylko po geście, więc robimy to przy dotknięciu ekranu.
+   iPhone nie ma pełnego ekranu w Safari: tam działa „Dodaj do ekranu początkowego” (meta apple-mobile-web-app-capable). */
+const FullScr = {
+  el: document.documentElement,
+  can() { return !!(this.el.requestFullscreen || this.el.webkitRequestFullscreen); },
+  on() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
+  standalone() { return !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)); },
+  iOS() { return /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); },
+  enter() {
+    if (this.on() || !this.can()) return;
+    try { const r = this.el.requestFullscreen ? this.el.requestFullscreen({ navigationUI: 'hide' }) : this.el.webkitRequestFullscreen(); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+  },
+  exit() { try { const r = document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen && document.webkitExitFullscreen(); if (r && r.catch) r.catch(() => {}); } catch (e) {} },
+  toggle() { if (this.on()) { this.exit(); this.manualOff = true; } else { this.manualOff = false; this.enter(); } },
+  // przycisk ⛶ w menu: tylko na dotyku i tylko gdy przeglądarka umie pełny ekran
+  sync() { const b = document.getElementById('m-fs'); if (!b) return; b.classList.toggle('can', this.can() && !this.standalone()); b.innerHTML = this.on() ? ICON.fsOff : ICON.fsOn; },
+};
+// pointerup i touchend są „gestem użytkownika”, po którym przeglądarka pozwala na pełny ekran.
+// W testach (navigator.webdriver) nie włączamy sami: Chromium bez okna źle przewija w pełnym ekranie.
+['pointerup', 'touchend'].forEach(ev => window.addEventListener(ev, e => {
+  if (!IS_TOUCH || navigator.webdriver || !settings.fullscreen || FullScr.manualOff || FullScr.on() || FullScr.standalone()) return;
+  if (e.target && e.target.closest && e.target.closest('#m-fs, .settings')) return;
+  FullScr.enter();
+}, true));
+['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => FullScr.sync()));
 const progress = Object.assign({ copy: {}, code: {} }, Store.get('progress', {}));
 const saveSettings = () => Store.set('settings', settings);
 const saveProgress = () => Store.set('progress', progress);
@@ -1967,6 +2053,7 @@ function openParentPanel() {
       <option value="0">bez limitu</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option></select></div>
     <div class="srow"><span>Odblokuj wszystkie poziomy i klocki</span><button class="toggle" data-set="unlockAll"></button></div>
     <div class="srow"><span>Lżejsza grafika (dla słabszych komputerów)</span><button class="toggle" data-set="lowGfx"></button></div>
+    <div class="srow"><span>Pełny ekran na telefonie i tablecie<br><small id="pp-fs" style="color:#7a7290"></small></span><button class="toggle" data-set="fullscreen"></button></div>
     <div class="srow"><span>Misje dopasowane do wieku</span><select id="pp-age"><option value="0">5–6 lat</option><option value="1">7–8 lat</option><option value="2">9 lat i więcej</option></select></div>
     <div class="srow"><span>Wyzeruj gwiazdki i postępy</span><button class="btn small" id="pp-reset">Wyzeruj</button></div>
     <p class="note">Klockowo działa w całości na tym komputerze: bez internetu, reklam, czatu i zakupów. Postępy i trzy światy zapisują się w tej przeglądarce.
@@ -1976,7 +2063,11 @@ function openParentPanel() {
     <div class="row"><button class="btn t-green" id="pp-close">Gotowe</button></div></div>`);
   const sync = () => $$('[data-set]', m.el).forEach(t => t.classList.toggle('on', !!settings[t.dataset.set]));
   sync();
-  $$('[data-set]', m.el).forEach(t => t.onclick = () => { settings[t.dataset.set] = !settings[t.dataset.set]; saveSettings(); sync(); if (t.dataset.set === 'lowGfx') applyQuality(); });
+  $$('[data-set]', m.el).forEach(t => t.onclick = () => { settings[t.dataset.set] = !settings[t.dataset.set]; saveSettings(); sync(); if (t.dataset.set === 'lowGfx') applyQuality(); if (t.dataset.set === 'fullscreen') { FullScr.manualOff = false; if (!settings.fullscreen) FullScr.exit(); } });
+  $('#pp-fs', m.el).textContent = FullScr.standalone() ? 'Gra działa jak aplikacja z ekranu początkowego.'
+    : FullScr.can() ? 'Włącza się po pierwszym dotknięciu ekranu. Wyjście: gest „wstecz” albo przycisk ⛶ w menu.'
+    : FullScr.iOS() ? 'Na iPhonie: Udostępnij → „Do ekranu początkowego”. Gra otworzy się wtedy bez pasków Safari.'
+    : 'Ta przeglądarka nie obsługuje pełnego ekranu.';
   $('#pp-voice', m.el).textContent = Voice.available() ? 'Głos: ' + Voice.voice.name : 'Brak polskiego głosu w systemie';
   $('#pp-test', m.el).onclick = () => Voice.say('Cześć! Jestem głosem Klockowa.', true);
   const sa = $('#pp-age', m.el); sa.value = String(settings.age | 0);

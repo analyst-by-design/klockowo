@@ -588,6 +588,7 @@ const Build3 = {
     $('#b3-view').style.display = build ? '' : 'none';
     $('#b3-shirt').style.display = build ? 'none' : '';
     $('#build-host').classList.toggle('building', build);
+    $('#scr-build').classList.toggle('walking', !build);
     $('#b3-joy').classList.toggle('on', !build); $('#b3-jump').classList.toggle('on', !build);
     { const c = CATS[this.cat]; $('#b3-catbtn').innerHTML = `${c.icon}<small>${c.name}</small>`; }
     $$('#b3-tools [data-group]').forEach(b => b.classList.toggle('sel', b.dataset.group === this.group));

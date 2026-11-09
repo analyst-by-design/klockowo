@@ -1637,6 +1637,7 @@ const Menu3 = {
       else { Levels.mode = g; show('levels'); Voice.say(g === 'copy' ? 'Wzory. Zbuduj to samo, co na obrazku.' : 'Jeżyk. Pomóż jeżykowi wrócić do domku.'); }
     });
     $('#m-parent').onclick = () => parentGate(openParentPanel);
+    $('#m-fs').onclick = () => { Snd.click(); FullScr.toggle(); }; FullScr.sync();
     if (!Engine.ok) return;
     const s = this.scene = new THREE.Scene();
     this.cam = new THREE.PerspectiveCamera(36, 1, .1, 900);
