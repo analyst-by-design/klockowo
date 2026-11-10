@@ -12,7 +12,7 @@ import os, re, subprocess, sys, time, pathlib
 
 TESTS = pathlib.Path(__file__).resolve().parent
 ROOT = TESTS.parent
-ORDER = ['smoke', 'menu', 'prefabs', 'terrain', 'plates', 'blueprint', 'missions', 'touch', 'scroll']
+ORDER = ['smoke', 'menu', 'prefabs', 'terrain', 'plates', 'blueprint', 'missions', 'touch', 'camera', 'scroll']
 ERR = re.compile(r"(?:errors?:\s*\[\s*['\"])|pageerror|Traceback|TimeoutError")
 
 def main():

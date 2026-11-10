@@ -55,7 +55,11 @@ function terrainTop(w, x, z) {
   for (let y = w.H - 1; y >= 0; y--) if (w.opaque(x, y, z) || w.get(x, y, z) === BK.water) return y + 1;
   return 0;
 }
-const HOLD = .35;
+const HOLD = .3;
+// palec drży: tyle pikseli ruchu to jeszcze dotknięcie, a nie obracanie widoku
+const SLOP_MOUSE = 6, SLOP_TOUCH = 16;
+// jak daleko od postaci można odjechać widokiem w budowaniu (po powrocie do spaceru postać tam przeskakuje)
+const FOCUS_R = 160;
 const VIEWS = [{ pitch: .95, em: '📐', say: 'Widok z ukosa' }, { pitch: 1.34, em: '🗺️', say: 'Widok z góry' }, { pitch: .42, em: '👀', say: 'Widok z boku' }];
 function floorTop(w, x, y, z) {
   const bs = cellBoxes(w, x, y - 1, z);
@@ -137,7 +141,7 @@ function applyQuality() {
   if (Engine.ok) { Engine.r.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio || 1, 1.5)); Engine.resize(); }
   for (const S of [Build3, Menu3]) if (S.env && S.env.sun) S.env.sun.castShadow = !low;
   if (Build3.world) Build3.world.R = low ? 2 : VIEW_R;
-  if (Build3.scene && Build3.scene.fog) { Build3.scene.fog.near = low ? 30 : 42; Build3.scene.fog.far = low ? 68 : 100; }
+  Build3.fogBase = low ? [30, 68] : [42, 100];
 }
 
 /* =========================================================
@@ -290,10 +294,12 @@ const Build3 = {
         if (this.drag) { this.drag = null; this.clearRect(); }
         try { host.setPointerCapture(e.pointerId); } catch (_) {}
         const g = two(); this.gest = { ...g, dist: Cam.dist, yaw: Cam.yaw, pitch: Cam.pitch, lmx: g.mx, lmy: g.my };
+        this.panVel = null;
         return;
       }
       if (this.ptrs.size > 2 || this.gest) return;
       if (!this.ready || this.drag) return;
+      this.panVel = null;
       try { host.setPointerCapture(e.pointerId); } catch (_) {}
       this.setMouse(e); Snd.ensure();
       this.drag = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, btn: e.button, moved: false, rs: null, t0: now(), ts: e.timeStamp, timer: false, touch: e.pointerType === 'touch' };
@@ -313,14 +319,14 @@ const Build3 = {
         Cam.dist = clamp(G.dist * G.d / Math.max(20, g.d), build ? 8 : 5, build ? 80 : 40);
         let da = g.a - G.a; da = ((da + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI;
         Cam.yaw = G.yaw - da;
-        if (build) this.panBy(g.mx - G.lmx, g.my - G.lmy);
+        if (build) this.grabPan(G.lmx, G.lmy, g.mx, g.my, e.timeStamp);
         else Cam.pitch = clamp(G.pitch + (g.my - (G.my)) * .005, .08, 1.38);
         G.lmx = g.mx; G.lmy = g.my; this.camUserT = now();
         return;
       }
       this.setMouse(e); this.lastMouseMove = now();
       const d = this.drag; if (!d) return;
-      if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) {
+      if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) > (d.touch ? SLOP_TOUCH : SLOP_MOUSE)) {
         d.moved = true;
         // o tym, czy to obrót, czy rząd, decyduje czas od wciśnięcia do pierwszego ruchu (znacznik czasu zdarzenia)
         const held = e.timeStamp - d.ts >= HOLD * 1000;
@@ -337,7 +343,15 @@ const Build3 = {
     });
     host.addEventListener('pointerup', e => {
       this.ptrs.delete(e.pointerId);
-      if (this.gest) { if (this.ptrs.size < 2) this.gest = null; this.drag = null; return; }
+      if (this.gest) {
+        if (this.ptrs.size < 2) {
+          // puszczenie po szybkim przesunięciu: widok jedzie dalej i łagodnie hamuje
+          const v = this.gest.vel;
+          if (v && e.timeStamp - v.t < 120 && Math.hypot(v.x, v.z) > 3) this.panVel = { x: v.x, z: v.z };
+          this.gest = null;
+        }
+        this.drag = null; return;
+      }
       const d = this.drag; this.drag = null; if (!d) return;
       if (d.rs && d.moved) { this.rectApply(d.rs); return; }
       this.clearRect();
@@ -404,9 +418,30 @@ const Build3 = {
     this.bfocus.x += (-rx * mx + fx * my) * s; this.bfocus.z += (-rz * mx + fz * my) * s;
     this.clampFocus();
   },
+  // punkt na wysokości budowania pod danym miejscem ekranu (null, gdy patrzymy w stronę horyzontu)
+  groundAt(cx, cy) {
+    const r = $('#build-host').getBoundingClientRect(); if (!r.width) return null;
+    const v = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    this.ray.setFromCamera(v, this.cam);
+    const o = this.ray.ray.origin, d = this.ray.ray.direction;
+    if (d.y > -.08) return null;
+    const t = (this.bfocus.y - o.y) / d.y;
+    return t > 0 ? { x: o.x + d.x * t, z: o.z + d.z * t } : null;
+  },
+  // przesuwanie dwoma palcami: świat „przykleja się” do palców (dokładnie), szybki ruch zapamiętuje prędkość
+  grabPan(x0, y0, x1, y1, ts) {
+    const a = this.groundAt(x0, y0), b = this.groundAt(x1, y1);
+    if (!a || !b) { this.panBy(x1 - x0, y1 - y0); return; }
+    let dx = a.x - b.x, dz = a.z - b.z; const l = Math.hypot(dx, dz), mx = Math.max(2, Cam.cd * .6);
+    if (l > mx) { dx *= mx / l; dz *= mx / l; }
+    this.bfocus.x += dx; this.bfocus.z += dz; this.clampFocus();
+    const G = this.gest; if (!G) return;
+    const pv = G.vel, dt = pv ? Math.max(.008, (ts - pv.t) / 1000) : .016, k = pv ? .5 : 1;
+    G.vel = { x: (pv ? pv.x * (1 - k) : 0) + dx / dt * k, z: (pv ? pv.z * (1 - k) : 0) + dz / dt * k, t: ts };
+  },
   clampFocus() {
     const p = this.player.pos, dx = this.bfocus.x - p.x, dz = this.bfocus.z - p.z, d = Math.hypot(dx, dz);
-    if (d > 70) { this.bfocus.x = p.x + dx / d * 70; this.bfocus.z = p.z + dz / d * 70; }
+    if (d > FOCUS_R) { this.bfocus.x = p.x + dx / d * FOCUS_R; this.bfocus.z = p.z + dz / d * FOCUS_R; if (this.panVel) this.panVel = null; }
   },
   zoom(f, toCursor) {
     const build = this.mode === 'build', nd = clamp(Cam.dist * f, build ? 8 : 5, build ? 80 : 40);
@@ -743,6 +778,12 @@ const Build3 = {
       const sp = Cam.cd * (k.run ? 1.4 : .75) * dt, fx = -Math.sin(Cam.cy), fz = -Math.cos(Cam.cy), rx = Math.cos(Cam.cy), rz = -Math.sin(Cam.cy);
       this.bfocus.x += (rx * ix - fx * iz) * sp; this.bfocus.z += (rz * ix - fz * iz) * sp;
       this.clampFocus();
+    }
+    const v = this.panVel;
+    if (v) {
+      this.bfocus.x += v.x * dt; this.bfocus.z += v.z * dt; this.clampFocus();
+      const f = Math.exp(-3.2 * dt); v.x *= f; v.z *= f;
+      if (Math.hypot(v.x, v.z) < .4) this.panVel = null;
     }
     // wysokość punktu widzenia: średnia wysokość terenu w okolicy (bez drzew i budowli), zmienia się powoli
     const w = this.world, bx = Math.floor(this.bfocus.x), bz = Math.floor(this.bfocus.z);
@@ -1282,6 +1323,9 @@ const Build3 = {
     Missions.update(dt, time);
     this.updateDoors(dt);
     Cam.update(dt, w, focus, this.cam);
+    // mgła liczy się od miejsca, na które patrzymy: po oddaleniu kamery nie ma białej zasłony
+    const fb = this.fogBase || [42, 100], off = Math.max(0, Cam.cur - 10), fog = this.scene.fog;
+    fog.near = fb[0] + off; fog.far = fb[1] + off * .75;
     this.env.follow(focus); this.env.update(dt, time, this.cam.position);
     TEX.water.offset.set(time * .03, time * .02);
     Parts3.update(dt);

@@ -1439,7 +1439,8 @@ function makeEnv(scene, opts = {}) {
   const cm = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x9aa8b8, flatShading: true });
   const cg = geo('cloud', () => new THREE.IcosahedronGeometry(1, 1));
   const cmV = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x9aa8b8, flatShading: true });
-  for (let i = 0; i < 16; i++) {
+  // w świecie budowania chmur nie ma: po oddaleniu kamery zasłaniały widok białą poświatą
+  for (let i = 0; i < (opts.roam ? 0 : 16); i++) {
     const c = new THREE.Group(), n = 4 + Math.floor(cr() * 3);
     for (let j = 0; j < n; j++) { const m = new THREE.Mesh(cg, cm); m.position.set((j - n / 2) * 2.4 + cr() * 1.5, cr() * 1.2, cr() * 2 - 1); const s = 1.7 + cr() * 1.6; m.scale.set(s * 1.3, s * .75, s); c.add(m); }
     const baked = bakedMesh(c, cmV);
