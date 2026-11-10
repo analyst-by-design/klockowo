@@ -162,6 +162,17 @@ const Build3 = {
     this.rectG = new THREE.Group(); this.rectG.visible = false; s.add(this.rectG);
     this.outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .95 }));
     this.outline.visible = false; s.add(this.outline);
+    // dotyk: strzałka nad miejscem, gdzie stanie klocek (palec zasłania podgląd pod sobą)
+    {
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffc83d, depthTest: false, transparent: true }), rim = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true });
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(.42, .9, 20), mat); cone.rotation.x = Math.PI; cone.position.y = .45;
+      const edge = new THREE.Mesh(new THREE.ConeGeometry(.52, 1.08, 20), rim); edge.rotation.x = Math.PI; edge.position.y = .5;
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(.34, 16, 12), mat); ball.position.y = 1.15;
+      const ballE = new THREE.Mesh(new THREE.SphereGeometry(.42, 16, 12), rim); ballE.position.y = 1.15;
+      this.pin = new THREE.Group(); [edge, ballE, cone, ball].forEach((m, i) => { m.renderOrder = 998 + (i > 1 ? 1 : 0); this.pin.add(m); });
+      this.pin.visible = false; s.add(this.pin);
+    }
+    this.flashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .5, depthWrite: false });
     this.boxGeo = new THREE.BoxGeometry(1.03, 1.03, 1.03); this.boxGeo.translate(.5, .5, .5);
     this.markMat = {
       erase: new THREE.MeshBasicMaterial({ color: 0xff8a7a, transparent: true, opacity: .42, depthWrite: false }),
@@ -285,9 +296,11 @@ const Build3 = {
       if (!this.ready || this.drag) return;
       try { host.setPointerCapture(e.pointerId); } catch (_) {}
       this.setMouse(e); Snd.ensure();
-      this.drag = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, btn: e.button, moved: false, rs: null, t0: now(), ts: e.timeStamp, timer: false };
+      this.drag = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, btn: e.button, moved: false, rs: null, t0: now(), ts: e.timeStamp, timer: false, touch: e.pointerType === 'touch' };
       if (this.mode === 'build' && e.button === 0) {
         this.updateTarget();
+        // dotyk: cel z chwili dotknięcia; drżenie palca podczas przytrzymania nie przesuwa początku rzędu na sąsiednią kratkę
+        if (this.drag.touch) this.drag.frozen = true;
         // Shift + przeciągnięcie: rząd od razu (bez czekania)
         if (e.shiftKey) this.armRect();
       }
@@ -371,9 +384,15 @@ const Build3 = {
     const rs = this.rectStart(); if (!rs) return false;
     d.rs = rs;
     if (rs.mode !== 'terrain') { rs.end = rs.anchor.slice(); this.rectBuild(rs); }
-    const lab = $('#b3-count'); lab.style.left = (this.mclient.x + 18) + 'px'; lab.style.top = (this.mclient.y - 44) + 'px';
+    this.placeCount();
     Snd.click();
     return true;
+  },
+  // liczba klocków przy palcu: na dotyku wyżej, żeby palec jej nie zasłaniał
+  placeCount() {
+    const lab = $('#b3-count'), t = this.drag && this.drag.touch;
+    lab.classList.toggle('big', !!t);
+    lab.style.left = (this.mclient.x + (t ? -120 : 18)) + 'px'; lab.style.top = (this.mclient.y - (t ? 110 : 44)) + 'px';
   },
   rotateBy(mx, my) {
     Cam.yaw -= mx * .0052;
@@ -763,17 +782,50 @@ const Build3 = {
       if (!this.cellFree([x, y, z])) return null;
       const b = w.get(x, y - 1, z);
       if (!b || BL[b].kind !== 'mat' || w.get(x, y, z) === BK.water) return null;
-      const cells = [[x, y, z]], low = isA ? 0 : this.lowFor(cells, hit);
-      return { x, y, z, cells, metas: [(d && d.oriented ? ori : 0) | low], low, id: isA ? 0 : d.id, animal: isA ? k.slice(1) : null, ori, blocked: this.blockedBy(cells, !isA && d.solid) };
+      const cells = [[x, y, z]], sup = isA ? { low: 0 } : this.support(cells, d.id, 0, hit), low = sup.low;
+      return { x, y, z, cells, metas: [(d && d.oriented ? ori : 0) | low], low, id: isA ? 0 : d.id, animal: isA ? k.slice(1) : null, ori, blocked: this.blockedBy(cells, !isA && d.solid), thick: sup.thick };
     }
     const L = pieceLayout(k, this.piece, ori), cells = L.cells.map(c => [x + c[0], y + c[1], z + c[2]]);
     if (!cells.every(c => this.cellFree(c))) return null;
     if (d.kind === 'door' && !cells.filter(c => c[1] === y).every(c => { const b = w.get(c[0], y - 1, c[2]); return b && BL[b].kind === 'mat'; })) return null;
     let base = L.base;
-    const low = d.kind === 'water' ? 0 : this.lowFor(cells, hit);
+    const sup = d.kind === 'water' ? { low: 0 } : this.support(cells, d.id, base, hit), low = sup.low;
     // naturalny klocek obniżony na płytkę rysuje się jak klocek z zaokrągleniem (nie zasłania sąsiadów)
     if (low && d.nat && ((base >> 2) & 7) === 0) base |= 5 << 2;
-    return { x, y, z, cells, metas: withLinks(cells, base | low), low, id: d.id, ori, blocked: this.blockedBy(cells, d.kind !== 'door' && d.kind !== 'water'), door: d.kind === 'door' };
+    return { x, y, z, cells, metas: withLinks(cells, base | low), low, id: d.id, ori, blocked: this.blockedBy(cells, d.kind !== 'door' && d.kind !== 'water'), door: d.kind === 'door', merge: sup.merge, thick: sup.thick };
+  },
+  /* Co jest pod nowym klockiem. Siatka trzyma jeden klocek w kratce, więc płytka położona na obniżonym klocku
+     (LOW) kończy się równo z kratką, a następny klocek wisiałby pół kratki nad nią. Dlatego:
+     - merge: płytka na płytce z tego samego materiału (tak samo ułożonej) = jeden pełny klocek w kratce niżej;
+     - thick: klocek stawiany na obniżonej płytce pogrubia ją do pełnego klocka (wtedy leży równo, też obniżony). */
+  support(cells, id, base, hit) {
+    const w = this.world, by = Math.min(...cells.map(c => c[1])), res = { low: this.lowFor(cells, hit), merge: null, thick: null };
+    const halfAt = (x, y, z) => { const t = w.get(x, y, z); if (!t || BL[t].kind !== 'mat') return false; const sh = (w.meta(x, y, z) >> 2) & 7; return sh === 1 || sh === 6; };
+    if (((base >> 2) & 7) === 6 && cells.every(c => c[1] === by)) {
+      const under = cells.map(c => [c[0], by - 1, c[2]]), foot = new Set(under.map(u => u.join(',')));
+      if (under.every(u => w.get(u[0], u[1], u[2]) === id && halfAt(u[0], u[1], u[2]))
+        && under.every(u => pieceCellsAt(w, u[0], u[1], u[2]).every(c => foot.has(c.join(','))))) {
+        res.merge = { cells: under, metas: withLinks(under, 5 << 2).map((m, i) => m | (w.meta(under[i][0], under[i][1], under[i][2]) & LOW)) };
+        return res;
+      }
+    }
+    if (res.low) {
+      const seen = new Set(), thick = [];
+      for (const c of cells) if (c[1] === by && halfAt(c[0], by - 1, c[2]) && (w.meta(c[0], by - 1, c[2]) & LOW))
+        for (const p of pieceCellsAt(w, c[0], by - 1, c[2])) { const k = p.join(','); if (!seen.has(k) && halfAt(p[0], p[1], p[2])) { seen.add(k); thick.push(p); } }
+      if (thick.length) res.thick = thick;
+    }
+    return res;
+  },
+  // pod spodem: zamiana płytek (sklejenie albo pogrubienie), z zapisem do cofania
+  applySupport(rec, pc) {
+    const w = this.world;
+    if (pc.merge) { pc.merge.cells.forEach((c, i) => this.setR(rec, c[0], c[1], c[2], pc.id, pc.merge.metas[i])); return true; }
+    if (pc.thick) for (const c of pc.thick) {
+      const m = w.meta(c[0], c[1], c[2]), sh = (m >> 2) & 7;
+      if (sh === 1 || sh === 6) this.setR(rec, c[0], c[1], c[2], w.get(c[0], c[1], c[2]), (m & ~(7 << 2)) | (5 << 2));
+    }
+    return false;
   },
   // czy klocek leży na płytce (albo na klocku już obniżonym)? wtedy obniżamy go o pół kratki
   lowFor(cells, hit) {
@@ -855,6 +907,7 @@ const Build3 = {
     o.scale.set(x1 - x0 + .04, y1 - y0 + .04, z1 - z0 + .04); o.material.color.set(color);
   },
   updateTarget() {
+    if (this.drag && this.drag.frozen && !this.drag.moved) return;
     this.outline.visible = false; this.ghost.visible = false; this.pl = null; this.hit = null; if (this.brush) this.brush.visible = false;
     const host = $('#build-host'); host.style.cursor = '';
     if (!this.mouse.in || (this.drag && this.drag.moved)) return;
@@ -950,7 +1003,7 @@ const Build3 = {
     if (rs.mode === 'terrain') { this.strokeMove(rs); return; }
     this.ray.setFromCamera(this.mouse, this.cam);
     const o = this.ray.ray.origin, dr = this.ray.ray.direction, a = rs.axis, A = rs.anchor, oc = [o.x, o.y, o.z], dc = [dr.x, dr.y, dr.z];
-    const lab = $('#b3-count'); lab.style.left = (this.mclient.x + 18) + 'px'; lab.style.top = (this.mclient.y - 44) + 'px';
+    this.placeCount();
     if (Math.abs(dc[a]) < 1e-4) return;
     const t = (A[a] + .5 - oc[a]) / dc[a]; if (t < 0) return;
     const E = [0, 1, 2].map(i => i === a ? A[i] : Math.floor(oc[i] + dc[i] * t));
@@ -996,14 +1049,20 @@ const Build3 = {
       }
     }
     G.visible = true;
+    // obrys całego prostokąta: od razu widać, gdzie rząd się kończy
+    const all = rs.pieces.flatMap(p => p.cells);
+    if (all.length) this.setOutlineCells(all, rs.mode === 'erase' ? 0xff8a7a : rs.mode === 'paint' ? 0xfff0a0 : 0xffc83d, rs.mode === 'place' ? (rs.pieces[0].low ? .5 : 0) : (w.meta(A[0], A[1], A[2]) & LOW ? .5 : 0));
     const n = rs.pieces.length, lab = $('#b3-count'); lab.textContent = n; lab.classList.toggle('on', n > 0);
   },
   tilePieces(rs) {
     const k = this.item, d = BL[BK[k]], a = rs.axis, A = rs.anchor, lo = rs.lo, hi = rs.hi, ori = rs.ori, out = [];
-    const low = rs.low || 0;
     const add = (cells, base) => {
+      if (!cells.every(c => this.cellFree(c)) || this.blockedBy(cells, d.kind !== 'water')) return;
+      // podłoga (przeciąganie po wierzchu): każdy kawałek patrzy, na czym leży; mur: dolny rząd tak jak pierwszy klocek
+      const sup = d.kind === 'water' ? { low: 0 } : a === 1 ? this.support(cells, d.id, base, null) : { low: rs.low || 0 };
+      const low = a === 1 && !sup.low && !sup.merge && !cells.some(c => this.world.get(c[0], c[1] - 1, c[2])) ? rs.low || 0 : sup.low;
       if (low && d.nat && ((base >> 2) & 7) === 0) base |= 5 << 2;
-      if (cells.every(c => this.cellFree(c)) && !this.blockedBy(cells, d.kind !== 'water')) out.push({ cells, metas: withLinks(cells, base | low), id: d.id });
+      out.push({ cells, metas: withLinks(cells, base | low), id: d.id, low, merge: sup.merge, thick: sup.thick });
     };
     const P = isPieceItem(k) ? PIECES[this.piece] : null;
     const singleBase = !P ? (d.oriented ? ori : 0) : P.shape ? (P.shape << 2) | (P.oriented ? ori : 0) : P.plate ? 6 << 2 : P.slope ? (3 << 2) | ori : 5 << 2;
@@ -1041,7 +1100,10 @@ const Build3 = {
     const pieces = rs.pieces || []; this.clearRect();
     if (!pieces.length) { Snd.soft(); return; }
     const w = this.world, rec = this.rec();
-    if (rs.mode === 'place') { for (const pc of pieces) if (pc.cells.every(c => this.cellFree(c))) pc.cells.forEach((c, i) => this.setR(rec, c[0], c[1], c[2], pc.id, pc.metas[i])); }
+    if (rs.mode === 'place') {
+      for (const pc of pieces) if (pc.cells.every(c => this.cellFree(c))) { if (!this.applySupport(rec, pc)) pc.cells.forEach((c, i) => this.setR(rec, c[0], c[1], c[2], pc.id, pc.metas[i])); }
+      this.flashCells(pieces.flatMap(p => p.merge ? p.merge.cells : p.cells), 0);
+    }
     else if (rs.mode === 'erase') {
       let cut = 0;
       for (const pc of pieces) {
@@ -1057,10 +1119,39 @@ const Build3 = {
     const col = rs.mode === 'erase' ? '#ffffff' : BL[rs.mode === 'place' ? pieces[0].id : BK[this.item]].c;
     for (let i = 0; i < pieces.length; i += Math.max(1, Math.floor(pieces.length / 6))) { const c = pieces[i].cells[0]; Parts3.burst(c[0], c[1], c[2], col, 3); if (rs.mode !== 'erase') Parts3.sparkle(c[0], c[1], c[2], 1); }
     const n = pieces.length; Voice.say(n + ' ' + klockiWord(n));
-    if (rs.mode === 'place') { this.tut('place', n); this.tut('drag', n); this.emit('place', pieces.map(p => ({ id: p.id, cells: p.cells, m: p.metas[0] }))); }
+    if (rs.mode === 'place') { this.tut('place', n); this.tut('drag', n); this.emit('place', pieces.map(p => p.merge ? { id: p.id, cells: p.merge.cells, m: p.merge.metas[0] } : { id: p.id, cells: p.cells, m: p.metas[0] })); }
     else { this.tut(rs.mode, n); this.emit(rs.mode, rs.mode === 'paint' ? { id: BK[this.item], n } : n); }
   },
-  clearRect() { if (this.rectG) { this.rectG.visible = false; this.rectG.clear(); } const l = $('#b3-count'); if (l) l.classList.remove('on'); },
+  clearRect() { if (this.rectG) { this.rectG.visible = false; this.rectG.clear(); } if (this.outline) this.outline.visible = false; const l = $('#b3-count'); if (l) l.classList.remove('on'); },
+  // strzałka nad celem, tylko gdy palec jest na ekranie w budowaniu
+  updatePin(time) {
+    const d = this.drag, P = this.pin; if (!P) return;
+    let c = null, top = 1;
+    if (d && d.touch && this.mode === 'build' && !this.gest) {
+      if (d.rs && d.rs.end && d.rs.mode !== 'terrain') { const E = d.rs.end; c = [E[0] + .5, E[1], E[2] + .5]; top = 1 - (d.rs.low ? .5 : 0); if (d.rs.mode !== 'place') top = 1; }
+      else if (!d.moved && this.pl && !this.pl.tool && this.pl.cells) {
+        const cs = this.pl.cells, mx = Math.max(...cs.map(q => q[1]));
+        c = [cs.reduce((a, q) => a + q[0], 0) / cs.length + .5, mx, cs.reduce((a, q) => a + q[2], 0) / cs.length + .5]; top = 1 - (this.pl.low ? .5 : 0);
+      } else if (!d.moved && this.hit && this.hit.x !== undefined && this.tool !== 'build') { c = [this.hit.x + .5, this.hit.y, this.hit.z + .5]; }
+    }
+    if (!c) { P.visible = false; return; }
+    const k = clamp(Cam.dist / 9, .8, 6);
+    P.visible = true; P.scale.setScalar(k);
+    P.position.set(c[0], c[1] + top + .35 * k + Math.abs(Math.sin(time * 5)) * .25 * k, c[2]);
+  },
+  // krótki błysk na świeżo postawionych klockach
+  flashCells(cells, dy) {
+    if (!cells || !cells.length || !this.flashMat) return;
+    if (this.flash) { this.scene.remove(this.flash.m); this.flash.m.dispose(); }
+    const w = this.world, im = new THREE.InstancedMesh(this.boxGeo, this.flashMat, cells.length), mt = new THREE.Matrix4();
+    cells.forEach((c, i) => im.setMatrixAt(i, mt.makeTranslation(c[0] - .015, c[1] - .015 - (w.meta(c[0], c[1], c[2]) & LOW ? .5 : 0), c[2] - .015)));
+    im.renderOrder = 5; this.scene.add(im); this.flash = { m: im, t: 0 };
+  },
+  updateFlash(dt) {
+    const f = this.flash; if (!f) return;
+    f.t += dt; this.flashMat.opacity = .55 * Math.max(0, 1 - f.t / .6);
+    if (f.t > .6) { this.scene.remove(f.m); f.m.dispose(); this.flash = null; }
+  },
 
   /* ----- zmiany świata z cofaniem ----- */
   rec() { return { c: [], addA: [], remA: [] }; },
@@ -1070,10 +1161,12 @@ const Build3 = {
     const w = this.world, rec = this.rec();
     if (pl.animal) { const a = new Animal3(pl.animal, pl.x, pl.y, pl.z); w.addAnimal(a); rec.addA.push(a); Snd.animal(pl.animal); Parts3.heart(pl.x + .5, pl.y + 1.6, pl.z + .5, 2); this.emit('animal', pl.animal); }
     else {
-      pl.cells.forEach((c, i) => this.setR(rec, c[0], c[1], c[2], pl.id, pl.metas[i]));
+      const merged = this.applySupport(rec, pl);
+      if (!merged) pl.cells.forEach((c, i) => this.setR(rec, c[0], c[1], c[2], pl.id, pl.metas[i]));
       Snd.place(pl.id); pl.cells.slice(0, 3).forEach(c => Parts3.burst(c[0], c[1], c[2], BL[pl.id].c, 4));
       Parts3.sparkle(pl.x, pl.y, pl.z, 3);
-      this.emit('place', [{ id: pl.id, cells: pl.cells, m: pl.metas[0] }]);
+      this.flashCells(merged ? pl.merge.cells : pl.cells, pl.low ? .5 : 0);
+      this.emit('place', [merged ? { id: pl.id, cells: pl.merge.cells, m: pl.merge.metas[0] } : { id: pl.id, cells: pl.cells, m: pl.metas[0] }]);
     }
     this.endRec(rec); this.dirty = true;
     if (this.player.pos.distanceTo(new V3(pl.x + .5, pl.y, pl.z + .5)) < 24) this.player.act(pl.x + .5, pl.z + .5);
@@ -1196,6 +1289,7 @@ const Build3 = {
     WIND.uTime.value = time;
     Life.update(dt, time, w, this.mode === 'walk' ? this.player.pos : this.bfocus);
     if (!(this.drag && this.drag.rs)) this.updateTarget();
+    this.updatePin(time); this.updateFlash(dt);
     this.updateCompass();
     this.saveAcc += dt;
     if (this.dirty && this.saveAcc > 4) { this.saveAcc = 0; this.dirty = false; this.save(false); }
